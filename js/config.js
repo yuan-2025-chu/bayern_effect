@@ -16,7 +16,7 @@ const CONFIG = {
     },
     stage1: {
     duration: 3.0,
-    grid: 10,
+    grid: 4,
     initialFragments: { min: 10, max: 30 },
     flashDuration: 0.3,       // 出现快
     floatAmplitude: 3,
@@ -51,7 +51,7 @@ const CONFIG = {
         flyDistance: { min: 50, max: 200 },   // 飞出距离范围
         fragmentShrink: 0.7,             // 碎片缩小比例
         particleStartRatio: 0.2,         // 从碎片飞出到粒子出现的时间占比
-        particleSpawnRate: 0.18,          // 粒子生成速率（每秒每碎片）
+        particleSpawnRate: 0.05,          // 粒子生成速率（每秒每碎片）
         particleSize: { min: 2, max: 5 },          // 粒子尺寸范围
         particleSpeedX: { min: -40, max: 40 },        // 粒子水平速度范围
         particleSpeedY: { min: -40, max: 40 },        // 粒子垂直速度范围
