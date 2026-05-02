@@ -123,7 +123,7 @@ function startStage4(particles) {
             window._rushInit = true;
             for (const p of particles) {
                 // 10%的粒子延迟为0，立刻起飞
-                if (Math.random() < 0.001) {
+                if (Math.random() < 0.02) {
                     p.rushDelay = 0;
                 } else {
                     p.rushDelay = randomBetween(0.2, rushDuration * 0.6);

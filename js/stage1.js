@@ -1,10 +1,12 @@
 // stage1.js
 
 function startStage1(imageList, layouts) {
-    const grid = CONFIG.stage1.grid;
+    console.log('第一幕开始');
+    
+    const cfg = CONFIG.stage1;
+    const grid = cfg.grid;
     const allSlots = generateFragmentSlots(layouts, grid);
     
-    // 按小图分组
     const slotsByImage = {};
     for (let i = 0; i < layouts.length; i++) {
         slotsByImage[i] = { all: [], available: [] };
@@ -14,154 +16,146 @@ function startStage1(imageList, layouts) {
         slotsByImage[slot.imageId].available.push({ ...slot });
     }
     
-    // 每张小图的微小延迟
     const imageDelays = {};
     for (let i = 0; i < layouts.length; i++) {
-        imageDelays[i] = randomBetween(0, 0.3);
+        imageDelays[i] = randomBetween(0, 0.5);
     }
     
-    // 初始碎片
     window.fragments = [];
     for (let imgId = 0; imgId < layouts.length; imgId++) {
         const group = slotsByImage[imgId];
-        const count = Math.floor(randomBetween(
-            CONFIG.stage1.initialFragments.min,
-            CONFIG.stage1.initialFragments.max
-        ));
+        const count = Math.floor(randomBetween(3, 8));
         const shuffled = [...group.available].sort(() => Math.random() - 0.5);
         
         for (let i = 0; i < Math.min(count, shuffled.length); i++) {
             const slot = shuffled[i];
-            const idx = group.available.findIndex(s =>
-                s.srcX === slot.srcX && s.srcY === slot.srcY
-            );
+            const idx = group.available.findIndex(s => s.srcX === slot.srcX && s.srcY === slot.srcY);
             if (idx > -1) group.available.splice(idx, 1);
             
             window.fragments.push({
                 ...slot,
-                offsetX: randomBetween(CONFIG.stage1.offsetX.min, CONFIG.stage1.offsetX.max),
-                offsetY: randomBetween(CONFIG.stage1.offsetY.min, CONFIG.stage1.offsetY.max),
-                currentOffsetX: 0,
-                currentOffsetY: 0,
-                arcOffset: 0,
-                opacity: 0,
-                spawnTime: 0,
-                dying: false,
+                offsetX: 0, offsetY: 0,
+                currentOffsetX: randomBetween(-2, 2),
+                currentOffsetY: randomBetween(-2, 2),
+                arcOffset: 0, opacity: 0, spawnTime: 0, dying: false,
                 floatPhase: Math.random() * Math.PI * 2,
-                floatSpeed: randomBetween(0.8, 1.2) * CONFIG.stage1.floatSpeed,
+                floatSpeed: randomBetween(0.3, 0.8),
+                z: (Math.random() - 0.5) * 40,
             });
         }
     }
     
     let startTime = null;
+    let phaseInitB = false;
     
     function update(currentTime) {
         if (!startTime) startTime = currentTime;
         const elapsed = (currentTime - startTime) / 1000;
         
-        if (elapsed > CONFIG.stage1.duration) {
-            console.log('第一幕结束，碎片数:', window.fragments.length);
-            // ========== 第二幕接口 ==========
-            if (typeof startStage2 === 'function') {
-                startStage2(window.fragments);
+        // A段：碎片慢慢生长
+        if (elapsed < cfg.phaseA) {
+            for (let imgId = 0; imgId < layouts.length; imgId++) {
+                const group = slotsByImage[imgId];
+                const adjustedElapsed = Math.max(0, elapsed - imageDelays[imgId]);
+                const progress = Math.min(1, adjustedElapsed / (cfg.phaseA - imageDelays[imgId]));
+                const targetTotal = Math.floor(3 + progress * (group.all.length - 3));
+                const clampedTarget = Math.min(targetTotal, group.all.length);
+                
+                const currentFrags = window.fragments.filter(f => f.imageId === imgId);
+                const aliveCount = currentFrags.filter(f => !f.dying).length;
+                
+                if (clampedTarget > aliveCount && group.available.length > 0) {
+                    const toAdd = Math.min(clampedTarget - aliveCount, group.available.length);
+                    const shuffled = [...group.available].sort(() => Math.random() - 0.5);
+                    for (let i = 0; i < toAdd; i++) {
+                        const slot = shuffled[i];
+                        const idx = group.available.findIndex(s => s.srcX === slot.srcX && s.srcY === slot.srcY);
+                        if (idx > -1) group.available.splice(idx, 1);
+                        window.fragments.push({
+                            ...slot,
+                            offsetX: 0, offsetY: 0,
+                            currentOffsetX: randomBetween(-3, 3),
+                            currentOffsetY: randomBetween(-3, 3),
+                            arcOffset: 0, opacity: 0, spawnTime: elapsed, dying: false,
+                            floatPhase: Math.random() * Math.PI * 2,
+                            floatSpeed: randomBetween(0.3, 0.8),
+                            z: (Math.random() - 0.5) * 40,
+                        });
+                    }
+                }
             }
+            
+            for (const frag of window.fragments) {
+                const age = elapsed - frag.spawnTime;
+                frag.opacity = age < 0.4 ? Math.min(1, age / 0.4) : 1;
+                frag.currentOffsetX = Math.sin(elapsed * frag.floatSpeed + frag.floatPhase) * 2;
+                frag.currentOffsetY = Math.cos(elapsed * frag.floatSpeed + frag.floatPhase + 1) * 2;
+            }
+        }
+        
+        // B段：波动 + 替换
+        if (elapsed >= cfg.phaseA) {
+            const bElapsed = elapsed - cfg.phaseA;
+            const bDuration = cfg.duration - cfg.phaseA;
+            const waveDuration = bDuration * 0.5;
+            
+            if (!phaseInitB) {
+                phaseInitB = true;
+                console.log('B段开始，碎片数:', window.fragments.length);
+            }
+            
+            if (bElapsed < waveDuration) {
+                const progress = bElapsed / waveDuration;
+                const wave1 = Math.sin(progress * Math.PI * 3) * Math.exp(-progress * 2.5) * 30;
+                const wave2 = Math.sin(progress * Math.PI * 5 + 1) * Math.exp(-progress * 2) * 20;
+                
+                for (const frag of window.fragments) {
+                    frag.opacity = 1;
+                    frag.currentOffsetX = wave1 * 0.6 + wave2 * 0.5;
+                    frag.currentOffsetY = wave1 * 0.5 + wave2 * 0.7;
+                }
+            } else {
+                if (!window._replaced) {
+                    window._replaced = true;
+                    const layoutMap = {};
+                    for (const layout of layouts) {
+                        layoutMap[layout.id] = {
+                            image: layout.image,
+                            centerX: layout.x + layout.width / 2,
+                            centerY: layout.y + layout.height / 2,
+                            targetX: layout.x,
+                            targetY: layout.y,
+                            targetWidth: layout.width,
+                            targetHeight: layout.height,
+                            rotation: layout.rotation,
+                            opacity: 1,
+                            currentOffsetX: 0,
+                            currentOffsetY: 0,
+                            arcOffset: 0,
+                            srcX: 0, srcY: 0,
+                            srcWidth: layout.image.width,
+                            srcHeight: layout.image.height,
+                            isFullImage: true,
+                            imageId: layout.id,
+                        };
+                    }
+                    window.fragments = Object.values(layoutMap);
+                    console.log('B段：替换为完整小图');
+                }
+                
+                for (const frag of window.fragments) {
+                    frag.opacity = 1;
+                    frag.currentOffsetX = Math.sin(elapsed * 0.8) * 2;
+                    frag.currentOffsetY = Math.cos(elapsed * 0.6) * 2;
+                }
+            }
+        }
+        
+        if (elapsed > cfg.duration) {
+            console.log('第一幕结束');
+            if (typeof startStage2 === 'function') startStage2(window.fragments, layouts);
             return;
         }
-        
-        // 每张小图独立更新
-        for (let imgId = 0; imgId < layouts.length; imgId++) {
-            const group = slotsByImage[imgId];
-            const adjustedElapsed = Math.max(0, elapsed - imageDelays[imgId]);
-            const targetTotal = getTargetFragmentCount(adjustedElapsed, CONFIG.stage1.waves);
-            const clampedTarget = Math.min(targetTotal, group.all.length);
-            
-            const currentFrags = window.fragments.filter(f => f.imageId === imgId);
-            const aliveCount = currentFrags.filter(f => !f.dying).length;
-            
-            // 增加碎片
-            if (clampedTarget > aliveCount && group.available.length > 0) {
-                const toAdd = Math.min(clampedTarget - aliveCount, group.available.length);
-                const shuffled = [...group.available].sort(() => Math.random() - 0.5);
-                
-                for (let i = 0; i < toAdd; i++) {
-                    const slot = shuffled[i];
-                    const idx = group.available.findIndex(s =>
-                        s.srcX === slot.srcX && s.srcY === slot.srcY
-                    );
-                    if (idx > -1) group.available.splice(idx, 1);
-                    
-                    window.fragments.push({
-                        ...slot,
-                        offsetX: randomBetween(CONFIG.stage1.offsetX.min, CONFIG.stage1.offsetX.max),
-                        offsetY: randomBetween(CONFIG.stage1.offsetY.min, CONFIG.stage1.offsetY.max),
-                        currentOffsetX: 0,
-                        currentOffsetY: 0,
-                        arcOffset: 0,
-                        opacity: 0,
-                        spawnTime: elapsed,
-                        dying: false,
-                        floatPhase: Math.random() * Math.PI * 2,
-                        floatSpeed: randomBetween(0.8, 1.2) * CONFIG.stage1.floatSpeed,
-                    });
-                }
-            }
-            
-            // 减少碎片
-            if (clampedTarget < aliveCount) {
-                const toRemove = aliveCount - clampedTarget;
-                const notDying = currentFrags.filter(f => !f.dying);
-                const shuffled = notDying.sort(() => Math.random() - 0.5);
-                
-                for (let i = 0; i < Math.min(toRemove, shuffled.length); i++) {
-                    shuffled[i].dying = true;
-                    shuffled[i].deathTime = elapsed;
-                }
-            }
-        }
-        
-        // 更新透明度
-        for (const frag of window.fragments) {
-            const age = elapsed - frag.spawnTime;
-            if (age < CONFIG.stage1.flashDuration && !frag.dying) {
-                frag.opacity = Math.min(1, age / CONFIG.stage1.flashDuration);
-            } else if (!frag.dying) {
-                frag.opacity = 1;
-            }
-            if (frag.dying) {
-                const deathAge = elapsed - frag.deathTime;
-                frag.opacity = Math.max(0, 1 - deathAge / CONFIG.stage1.deathDuration);
-                //frag.opacity = Math.max(0, 1 - deathAge / 0.3);
-            }
-        }
-        
-        // 清理消失的碎片
-        window.fragments = window.fragments.filter(frag => {
-            if (frag.dying && frag.opacity <= 0) {
-                const group = slotsByImage[frag.imageId];
-                const alreadyThere = group.available.find(s =>
-                    s.srcX === frag.srcX && s.srcY === frag.srcY
-                );
-                if (!alreadyThere) {
-                    group.available.push({
-                        imageId: frag.imageId,
-                        image: frag.image,
-                        srcX: frag.srcX,
-                        srcY: frag.srcY,
-                        srcWidth: frag.srcWidth,
-                        srcHeight: frag.srcHeight,
-                        targetX: frag.targetX,
-                        targetY: frag.targetY,
-                        targetWidth: frag.targetWidth,
-                        targetHeight: frag.targetHeight,
-                        centerX: frag.centerX,
-                        centerY: frag.centerY,
-                        rotation: frag.rotation,
-                    });
-                }
-                return false;
-            }
-            return true;
-        });
         
         requestAnimationFrame(update);
     }

@@ -1,8 +1,9 @@
 // stage3.js
 
 function startStage3(fragments) {
-    console.log('第三幕开始，小图数:', fragments.length);
-    
+    //console.log('第三幕开始，小图数:', fragments.length);
+    console.log('第三幕开始，小图数:', fragments.length, '第一个:', fragments[0]);
+    console.log('stage3配置:', CONFIG.stage3);
     const cfg = CONFIG.stage3;
     const allParticles = [];
     const allFragments = [];
@@ -42,6 +43,7 @@ function startStage3(fragments) {
                     flyY: Math.sin(angle) * distance,
                     opacity: 1,
                     scale: 1,
+                    z: (Math.random() - 0.5) * 80,
                 });
             }
         }
@@ -88,6 +90,7 @@ function startStage3(fragments) {
                     currentOffsetX: 0,
                     currentOffsetY: 0,
                     isFragment: true,
+                    z: (Math.random() - 0.5) * 80,
                 });
             }
             
@@ -107,6 +110,7 @@ function startStage3(fragments) {
                     life: randomBetween(cfg.particleLife.min, cfg.particleLife.max),
                     birthTime: elapsed,
                     isParticle: true,
+                    z: (Math.random() - 0.5) * 200,
                 });
             }
         }
